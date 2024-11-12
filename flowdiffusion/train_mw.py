@@ -4,11 +4,13 @@ from transformers import CLIPTextModel, CLIPTokenizer
 from datasets import SequentialDatasetv2
 from torch.utils.data import Subset
 import argparse
+import cv2
+import os
 
 
 def main(args):
     valid_n = 1
-    sample_per_seq = 8
+    sample_per_seq = 24
     target_size = (128, 128)
 
     if args.mode == 'inference':
@@ -49,16 +51,16 @@ def main(args):
         text_encoder=text_encoder,
         train_set=train_set,
         valid_set=valid_set,
-        train_lr=1e-4,
-        train_num_steps =60000,
-        save_and_sample_every =2500,
+        train_lr=0.625e-5,
+        train_num_steps =100000,
+        save_and_sample_every =25000,
         ema_update_every = 10,
         ema_decay = 0.999,
-        train_batch_size =16,
-        valid_batch_size =32,
+        train_batch_size =1,
+        valid_batch_size =2,
         gradient_accumulate_every = 1,
         num_samples=valid_n, 
-        results_folder ='../results/mw',
+        results_folder=f'../results/mw/{args.destination_task}',
         fp16 =True,
         amp=True,
     )
@@ -80,7 +82,7 @@ def main(args):
         batch_size = 1
         ### 231130 fixed center crop issue 
         transform = transforms.Compose([
-            transforms.Resize((240, 320)),
+            # transforms.Resize((240, 320)),
             transforms.CenterCrop(target_size),
             transforms.ToTensor(),
         ])
@@ -91,6 +93,12 @@ def main(args):
         root, ext = splitext(args.inference_path)
         output_gif = root + '_out.gif'
         output = (output.cpu().numpy().transpose(0, 2, 3, 1).clip(0, 1) * 255).astype('uint8')
+        print(output.shape)
+        if not os.path.exists(f"../examples/{root}-seq/"):
+            os.makedirs(f"../examples/{root}-seq/")
+        for f in range(output.shape[0]):
+            frame = cv2.cvtColor(output[f], cv2.COLOR_RGB2BGR)
+            cv2.imwrite(f"../examples/{root}-seq/{f}.png", frame)
         imageio.mimsave(output_gif, output, duration=200, loop=1000)
         print(f'Generated {output_gif}')
 
@@ -102,6 +110,15 @@ if __name__ == "__main__":
     parser.add_argument('-t', '--text', type=str, default=None) # set to text to generate samples
     parser.add_argument('-n', '--sample_steps', type=int, default=100) # set to number of steps to sample
     parser.add_argument('-g', '--guidance_weight', type=int, default=0) # set to positive to use guidance
+    parser.add_argument('-d', '--destination_task', type=str, default='pull-little-end-tie-up', choices=['pull-little-end-tie-down',
+                                                                                                         'pull-large-end-tie-up',
+                                                                                                         'flip-ring-from-right-to-left',
+                                                                                                         'rotate-ring-up',
+                                                                                                         'pull-two-rings-together',
+                                                                                                         'insert-little-end-tie',
+                                                                                                         'pull-little-end-up-and-pull-large-end-down',
+                                                                                                         'knot-simulation-tie',
+                                                                                                         'knot-real-tie']) # set to positive to use guidance
     args = parser.parse_args()
     if args.mode == 'inference':
         assert args.checkpoint_num is not None

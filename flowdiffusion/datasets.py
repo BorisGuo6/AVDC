@@ -267,7 +267,7 @@ class SequentialDatasetv2(Dataset):
     
         if randomcrop:
             self.transform = video_transforms.Compose([
-                video_transforms.CenterCrop((160, 160)),
+                # video_transforms.CenterCrop((160, 160)),
                 video_transforms.RandomCrop((128, 128)),
                 video_transforms.Resize(target_size),
                 volume_transforms.ClipToTensor()
@@ -302,7 +302,13 @@ class SequentialDatasetv2(Dataset):
     def __getitem__(self, idx):
         try:
             samples = self.get_samples(idx)
-            images = self.transform([Image.open(s) for s in samples]) # [c f h w]
+            image_list = []
+            for s in samples:
+                temp = Image.open(s)
+                keep = temp.copy()
+                image_list.append(keep)
+                temp.close()
+            images = self.transform(image_list) # [c f h w]
             x_cond = images[:, 0] # first frame
             x = rearrange(images[:, 1:], "c f h w -> (f c) h w") # all other frames
             task = self.tasks[idx]
